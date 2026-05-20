@@ -24,5 +24,3 @@ A machine learning project that predicts EPL match outcomes using team performan
 - Web interface for predictions
 - Additional features (form, head-to-head, etc.)
 - Multiple seasons of data
-
-STILL IN PROGRESS TO MAKE A LOT BETTER
