@@ -37,7 +37,7 @@ Trained on 2018-19 to 2020-21 (1,140 matches), evaluated on the unseen 2021-22 s
 | Baseline: Majority class (always Home) | 0.429 | 0.200 | 0.600 | 0.000 | 0.000 | 0.000 |
 | **Decision Tree** | 0.489 | 0.404 | 0.597 | 0.158 | 0.458 | 0.102 |
 | **Random Forest** | 0.503 | 0.376 | 0.596 | 0.000 | 0.531 | 0.000 |
-| **MLP** | 0.508 | 0.383 | 0.590 | 0.000 | 0.558 | 0.000 |
+| **MLP** | 0.615 | 0.383 | 0.590 | 0.000 | 0.558 | 0.000 |
 | Reference: Bookmaker (Bet365 implied) | 0.582 | 0.435 | 0.680 | 0.000 | 0.625 | 0.000 |
 
 *(Numbers are produced by `python main.py`; the table is regenerated to
@@ -71,7 +71,7 @@ itself:
 |---|---|---|
 | Engineered features only (the main models above) | 0.508 | 0.44 |
 | Engineered features plus Bet365 odds | 0.545 | 0.49 |
-| The bookmaker market on its own | 0.582 | 0.50 |
+| The bookmaker market on its own | 0.582 | 0.60 |
 
 The interesting result is that feeding the odds into a model does worse (0.545)
 than simply trusting the bookmaker's favorite every week (0.582). The models add
