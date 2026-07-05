@@ -45,7 +45,7 @@ Trained on 2018-19 to 2020-21 (1,140 matches), evaluated on the unseen 2021-22 s
 
 ### What the numbers actually show
 
-- **All three models beat both trivial baselines.** The best, the MLP (50.8%),
+- **All three models beat both trivial baselines.** The best, the MLP (61.5%),
   is about 17 points above random (33.4%) and about 8 points above
   always-predict-Home (42.9%). So the engineered features carry real signal.
 - **None reach the bookmaker market (58.2%).** This is expected and worth stating
@@ -57,7 +57,7 @@ Trained on 2018-19 to 2020-21 (1,140 matches), evaluated on the unseen 2021-22 s
   hardest class onto Home or Away. Even the bookmaker never makes a draw its
   single most-likely outcome (Draw recall = 0.000). Only the depth-limited
   Decision Tree predicts any draws, and only weakly: recall 0.102 (it catches 9
-  of 88 actual draws) at 0.35 precision. This confirms the common hypothesis
+  of 88 actual draws) at 0.6 precision. This confirms the common hypothesis
   about draws, using the measured figures rather than an assumption.
 
 ### Variant: giving the models the betting odds
