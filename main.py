@@ -1,305 +1,152 @@
-import pandas as pd
+"""EPL match-outcome prediction — training & evaluation pipeline.
+
+Trains Decision Tree, Random Forest, and MLP classifiers on engineered,
+leakage-free pre-match features and evaluates them on a held-out season against
+three baselines (majority-class, uniform-random, and the bookmaker market).
+
+Run from the repo root:  python main.py
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+
 import numpy as np
-from sklearn.metrics import accuracy_score
-from sklearn.model_selection import train_test_split
-from sklearn.neural_network import MLPClassifier
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.impute import SimpleImputer
+from sklearn.neural_network import MLPClassifier
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler
 from sklearn.tree import DecisionTreeClassifier
-from sklearn.utils import resample
-# Replace 'your_file.csv' with the actual path to your CSV file
-file_path = './data/2021-2022.csv'
 
-# Read the CSV file into a DataFrame
-df = pd.read_csv(file_path)
-# Initiates X and Y and score
-X = np.zeros((380, 2))
-Y = []
-home = df["HomeTeam"]
-away = df["AwayTeam"]
-scores = df["FTR"]
-# Makes scores numerical from H A D to 0 1 2
-newScore = []
-for letter in scores:
-    if letter == 'H':
-        newScore.append(0)
-    elif letter == 'D':
-        newScore.append(1)
-    else:
-        newScore.append(2)
-# dictionary to hold team names and points
-teams = {"Man City": 0, "Liverpool": 0, "Chelsea": 0, "Tottenham": 0, "Arsenal": 0,
-       "Man United": 0, "West Ham": 0, "Leicester": 0, "Brighton": 0, "Wolves": 0,
-       "Newcastle": 0, "Crystal Palace": 0, "Brentford": 0, "Aston Villa": 0, "Southampton": 0,
-       "Everton": 0, "Leeds": 0, "Burnley": 0, "Watford": 0, "Norwich": 0}
+from src.data import CLASS_NAMES, load_seasons
+from src.evaluate import (
+    bookmaker_baseline,
+    comparison_table,
+    full_report,
+    majority_and_random_baselines,
+    metrics_row,
+    save_confusion_matrix,
+)
+from src.features import FEATURE_COLS, build_features
 
-#algorithm: Inputs values for X(teams) and Y(score) by position
-# it adds the current positions of the team every 10 games
+SEED = 42
+ROOT = Path(__file__).resolve().parent
+DATA_DIR = ROOT / "data"
+RESULTS_DIR = ROOT / "results"
 
-count = 0
-for index,score in enumerate(newScore):
-    home_team = home[index]
-    away_team = away[index]
-    if score == 0:
-        teams[home_team] += 3
-    elif score == 2:
-        teams[away_team] += 3
-    else:
-        teams[home_team] += 1
-        teams[away_team] += 1
-    X[index] = list(teams).index(home_team),list(teams).index(away_team)
-    Y.append(score)
-    count += 1
-    if count == 10:
-        # sorts dictionary by numerical value from greatest to least
-        teams = dict(sorted(teams.items(), key=lambda x: x[1], reverse=True))
-        print(teams)
-        count = 0
-print(teams)
-
-##takes out first 20% fixtures
-percent_to_keep = 0.80
-num_rows_to_keep = int(X.shape[0] * percent_to_keep)
-X = X[num_rows_to_keep:]
-
-num_elements_to_keep = int(len(Y) * percent_to_keep)
-Y = Y[num_elements_to_keep:]
-
-##split dataset
-X_train, X_test, y_train, y_test = train_test_split(X, Y, test_size=0.33)
-MLP = MLPClassifier(max_iter=400).fit(X_train, y_train)
-predictionsMLP = MLP.predict(X_test)
-correct = 0
-for index,prediction in enumerate(predictionsMLP):
-    if prediction == y_test[index]:
-        correct += 1
-accuracy = correct/len(predictionsMLP)
-print(accuracy)
-
-# traverse i in range X_test if predictionsMLP,RFC,DTC get right increase weight by 1
-RFC = RandomForestClassifier(max_depth=2, random_state=0)
-RFC.fit(X_train, y_train)
-predictionsRFC = RFC.predict(X_test)
-secondCorrect = 0
-for index,prediction in enumerate(predictionsRFC):
-    if prediction == y_test[index]:
-        secondCorrect += 1
-secondAccuracy = secondCorrect/len(predictionsRFC)
-print(secondAccuracy)
-
-# predictionsRFC = RFC.predict(X_train)
-# secondCorrect = 0
-# for index,prediction in enumerate(predictionsRFC):
-#     if prediction == y_train[index]:
-#         secondCorrect += 1
-# secondAccuracy = secondCorrect/len(predictionsRFC)
-# print(secondAccuracy) (do this for all models)
-# measure the games another test to check for all home game wins how many home games were predicted right(for both draw and away also)
-#
-
-# code this 3rd model
-## change variables to first second third
-DTC = DecisionTreeClassifier(random_state=0)
-DTC.fit(X_train, y_train)
-predictionsDTC = DTC.predict(X_test)
-thirdCorrect = 0
-for index,prediction in enumerate(predictionsDTC):
-    if prediction == y_test[index]:
-        thirdCorrect += 1
-thirdAccuracy = thirdCorrect/len(predictionsDTC)
-print(thirdAccuracy)
-
-w1,w2,w3 = 0,0,0
-for i in range(len(y_test)):
-    if(predictionsMLP[i] == y_test[i]):
-        w1 += 1
-    if (predictionsRFC[i] == y_test[i]):
-        w2 += 1
-    if (predictionsDTC[i] == y_test[i]):
-        w3 += 1
-print(w1)
-print(w2)
-print(w3)
-
-def calculate_accuracy(predictions, y_test):
-    correct_wins, correct_draws, correct_away = 0, 0, 0
-    total_predicted_wins, total_actual_wins = 0, 0
-    total_predicted_draws, total_actual_draws = 0, 0
-    total_predicted_away, total_actual_away = 0, 0
-
-    for index, prediction in enumerate(predictions):
-        actual_outcome = y_test[index]
-
-        if prediction == 0:
-            total_predicted_wins += 1
-            if actual_outcome == 0:
-                correct_wins += 1
-
-        elif prediction == 1:
-            total_predicted_draws += 1
-            if actual_outcome == 1:
-                correct_draws += 1
-
-        elif prediction == 2:
-            total_predicted_away += 1
-            if actual_outcome == 2:
-                correct_away += 1
-
-    accuracy_wins = correct_wins / total_predicted_wins if total_predicted_wins > 0 else 0
-    accuracy_draws = correct_draws / total_predicted_draws if total_predicted_draws > 0 else 0
-    accuracy_away = correct_away / total_predicted_away if total_predicted_away > 0 else 0
-
-    return accuracy_wins, accuracy_draws, accuracy_away
-
-# Calculate and print accuracy for MLP
-accuracy_wins_mlp, accuracy_draws_mlp, accuracy_away_mlp = calculate_accuracy(predictionsMLP, y_test)
-print("MLP Model:")
-print(f"Accuracy for Predicting Wins: {accuracy_wins_mlp:.2%}")
-print(f"Accuracy for Predicting Draws: {accuracy_draws_mlp:.2%}")
-print(f"Accuracy for Predicting Away Outcomes: {accuracy_away_mlp:.2%}")
-print()
-
-# Calculate and print accuracy for RFC
-accuracy_wins_rfc, accuracy_draws_rfc, accuracy_away_rfc = calculate_accuracy(predictionsRFC, y_test)
-print("RFC Model:")
-print(f"Accuracy for Predicting Wins: {accuracy_wins_rfc:.2%}")
-print(f"Accuracy for Predicting Draws: {accuracy_draws_rfc:.2%}")
-print(f"Accuracy for Predicting Away Outcomes: {accuracy_away_rfc:.2%}")
-print()
-
-# Calculate and print accuracy for DTC
-accuracy_wins_dtc, accuracy_draws_dtc, accuracy_away_dtc = calculate_accuracy(predictionsDTC, y_test)
-print("DTC Model:")
-print(f"Accuracy for Predicting Wins: {accuracy_wins_dtc:.2%}")
-print(f"Accuracy for Predicting Draws: {accuracy_draws_dtc:.2%}")
-print(f"Accuracy for Predicting Away Outcomes: {accuracy_away_dtc:.2%}")
-
-probabilitiesMLP = MLP.predict_proba(X_test)
-print("MLP Probabilities:")
-print(probabilitiesMLP)
-
-probabilitiesRFC = RFC.predict_proba(X_test)
-print("RFC Probabilities:")
-print(probabilitiesRFC)
-
-probabilitiesDTC = DTC.predict_proba(X_test)
-print("DTC Probabilities:")
-print(probabilitiesDTC)
+TRAIN_SEASONS = ["2018-2019", "2019-2020", "2020-2021"]
+TEST_SEASON = "2021-2022"
 
 
-# Function to calculate bootstrap confidence intervals
-def bootstrap_confidence_intervals(data, n_iterations=1000, confidence_level=0.95):
-    bootstrapped_means = []
-    for _ in range(n_iterations):
-        sample = resample(data)
-        bootstrapped_means.append(np.mean(sample, axis=0))
-    lower_bound = np.percentile(bootstrapped_means, ((1 - confidence_level) / 2) * 100, axis=0)
-    upper_bound = np.percentile(bootstrapped_means, (confidence_level + (1 - confidence_level) / 2) * 100, axis=0)
-    return lower_bound, upper_bound
+def build_models() -> dict[str, Pipeline]:
+    """Three classifiers, each fronted by a median imputer (fit on train only).
 
-# Example probabilities from your models
-probabilitiesMLP = np.array([
-    [0.46664946, 0.24956841, 0.28378213],
-    [0.13501781, 0.65453348, 0.21044871],
-    [0.30758097, 0.43945894, 0.25296009],
-    [0.46501707, 0.40810934, 0.12687359],
-    [0.20756221, 0.47861934, 0.31381846],
-    [0.22959142, 0.08314073, 0.68726785],
-    [0.97452019, 0.02312746, 0.00235235],
-    [0.06913474, 0.51077016, 0.4200951 ],
-    [0.43190205, 0.17023299, 0.39786496],
-    [0.11100931, 0.11935053, 0.76964016],
-    [0.38635956, 0.11480993, 0.49883051],
-    [0.4411094, 0.19475506, 0.36413554],
-    [0.43777561, 0.48050163, 0.08172276],
-    [0.44841856, 0.39703307, 0.15454838],
-    [0.08195014, 0.50307939, 0.41497047],
-    [0.12061351, 0.54717413, 0.33221236],
-    [0.46413274, 0.21375786, 0.3221094 ],
-    [0.84072279, 0.13204541, 0.0272318 ],
-    [0.10280572, 0.51760183, 0.37959245],
-    [0.96832256, 0.02862217, 0.00305527],
-    [0.06294874, 0.52390893, 0.41314233],
-    [0.3148942, 0.29297758, 0.39212821],
-    [0.37063113, 0.10617429, 0.52319458],
-    [0.48069198, 0.32769415, 0.19161387],
-    [0.4352315, 0.4020732, 0.1626953 ],
-    [0.4180173, 0.13946629, 0.4425164 ]
-])
+    Cold-start feature rows arrive as NaN from the feature builder; the imputer
+    fills them with the training median so the split owns the imputed value. The
+    MLP additionally needs standardised inputs.
+    """
+    imputer = lambda: SimpleImputer(strategy="median")
+    return {
+        "Decision Tree": Pipeline([
+            ("impute", imputer()),
+            ("clf", DecisionTreeClassifier(
+                max_depth=6, min_samples_leaf=20, random_state=SEED)),
+        ]),
+        "Random Forest": Pipeline([
+            ("impute", imputer()),
+            ("clf", RandomForestClassifier(
+                n_estimators=300, max_depth=10, min_samples_leaf=10,
+                n_jobs=-1, random_state=SEED)),
+        ]),
+        "MLP": Pipeline([
+            ("impute", imputer()),
+            ("scale", StandardScaler()),
+            ("clf", MLPClassifier(
+                hidden_layer_sizes=(64, 32), max_iter=1000,
+                early_stopping=True, random_state=SEED)),
+        ]),
+    }
 
-probabilitiesRFC = np.array([
-    [0.45222107, 0.27554802, 0.27223091],
-    [0.24267322, 0.45742013, 0.29990666],
-    [0.44417179, 0.28509367, 0.27073454],
-    [0.64478403, 0.22402616, 0.1311898 ],
-    [0.39899599, 0.27567029, 0.32533372],
-    [0.27077881, 0.25585381, 0.47336738],
-    [0.67588836, 0.1746864, 0.14942525],
-    [0.41367854, 0.34895565, 0.23736581],
-    [0.30300073, 0.22383499, 0.47316427],
-    [0.24733539, 0.27601859, 0.47664602],
-    [0.38720871, 0.21600843, 0.39678286],
-    [0.49185782, 0.23186796, 0.27627422],
-    [0.50891764, 0.32363456, 0.16744779],
-    [0.40165935, 0.36654258, 0.23179806],
-    [0.42190938, 0.3346093, 0.24348132],
-    [0.3621987, 0.34425543, 0.29354587],
-    [0.44988448, 0.26334863, 0.28676689],
-    [0.67522024, 0.20324646, 0.1215333 ],
-    [0.39018319, 0.36853538, 0.24128143],
-    [0.67535082, 0.21632993, 0.10831925],
-    [0.39681594, 0.36992715, 0.23325691],
-    [0.3355534, 0.33133209, 0.3331145 ],
-    [0.37238779, 0.21342679, 0.41418542],
-    [0.48648944, 0.29453668, 0.21897388],
-    [0.47786171, 0.32946328, 0.19267501],
-    [0.46526391, 0.2259397, 0.3087964 ]
-])
 
-probabilitiesDTC = np.array([
-    [1., 0., 0.],
-    [0., 1., 0.],
-    [0., 1., 0.],
-    [1., 0., 0.],
-    [0., 0., 1.],
-    [0., 0., 1.],
-    [1., 0., 0.],
-    [0., 1., 0.],
-    [0., 0., 1.],
-    [0., 0., 1.],
-    [0., 0., 1.],
-    [1., 0., 0.],
-    [0., 1., 0.],
-    [0., 1., 0.],
-    [0., 1., 0.],
-    [0., 1., 0.],
-    [1., 0., 0.],
-    [1., 0., 0.],
-    [0., 1., 0.],
-    [0., 1., 0.],
-    [0., 1., 0.],
-    [0., 1., 0.],
-    [1., 0., 0.],
-    [0., 0., 1.],
-    [0., 1., 0.],
-    [1., 0., 0.]
-])
+def class_distribution(y) -> str:
+    counts = {name: int((y == i).sum()) for i, name in enumerate(CLASS_NAMES)}
+    total = len(y)
+    return "  ".join(f"{n}: {c} ({c / total:.1%})" for n, c in counts.items())
 
-# Calculate confidence intervals for each model
-lower_mlp, upper_mlp = bootstrap_confidence_intervals(probabilitiesMLP)
-lower_rfc, upper_rfc = bootstrap_confidence_intervals(probabilitiesRFC)
-lower_dtc, upper_dtc = bootstrap_confidence_intervals(probabilitiesDTC)
 
-# Print the confidence intervals
-print("MLP Confidence Intervals:")
-print("Lower bounds:", lower_mlp)
-print("Upper bounds:", upper_mlp)
-print()
+def main() -> None:
+    np.random.seed(SEED)
 
-print("RFC Confidence Intervals:")
-print("Lower bounds:", lower_rfc)
-print("Upper bounds:", upper_rfc)
-print()
+    # ---- Load & engineer features on the full timeline, then split by season.
+    train_paths = [DATA_DIR / f"{s}.csv" for s in TRAIN_SEASONS]
+    test_path = DATA_DIR / f"{TEST_SEASON}.csv"
+    matches = load_seasons(train_paths + [test_path])
+    feat = build_features(matches)
 
-print("DTC Confidence Intervals:")
-print("Lower bounds:", lower_dtc)
-print("Upper bounds:", upper_dtc)
+    train = feat[feat["Season"].isin(TRAIN_SEASONS)]
+    test = feat[feat["Season"] == TEST_SEASON]
+
+    X_train, y_train = train[FEATURE_COLS], train["target"].to_numpy()
+    X_test, y_test = test[FEATURE_COLS], test["target"].to_numpy()
+
+    print("=" * 70)
+    print("DATASET")
+    print("=" * 70)
+    print(f"Train seasons {TRAIN_SEASONS}: {len(train)} matches")
+    print(f"   distribution: {class_distribution(y_train)}")
+    print(f"Test season  {TEST_SEASON}: {len(test)} matches")
+    print(f"   distribution: {class_distribution(y_test)}")
+    print(f"Features ({len(FEATURE_COLS)}): {', '.join(FEATURE_COLS)}")
+
+    rows: dict[str, dict] = {}
+
+    # ---- Baselines ------------------------------------------------------- #
+    print("\n" + "=" * 70)
+    print("BASELINES (test season)")
+    print("=" * 70)
+    maj_pred, rand_pred = majority_and_random_baselines(
+        X_train, y_train, X_test, seed=SEED)
+    book_pred, book_mask = bookmaker_baseline(test)
+
+    print("\n--- Majority-class baseline ---")
+    print(full_report(y_test, maj_pred))
+    rows["Baseline: Majority class"] = metrics_row(y_test, maj_pred)
+
+    print("--- Uniform-random baseline ---")
+    print(full_report(y_test, rand_pred))
+    rows["Baseline: Random"] = metrics_row(y_test, rand_pred)
+
+    n_book = int(book_mask.sum())
+    print(f"--- Bookmaker (Bet365 implied) baseline [{n_book}/{len(test)} "
+          "matches with odds] ---")
+    print(full_report(y_test[book_mask], book_pred))
+    rows["Baseline: Bookmaker (B365)"] = metrics_row(y_test[book_mask], book_pred)
+
+    # ---- Models ---------------------------------------------------------- #
+    print("\n" + "=" * 70)
+    print("MODELS (trained on prior seasons, evaluated on test season)")
+    print("=" * 70)
+    RESULTS_DIR.mkdir(exist_ok=True)
+    for name, model in build_models().items():
+        model.fit(X_train, y_train)
+        pred = model.predict(X_test)
+        print(f"\n--- {name} ---")
+        print(full_report(y_test, pred))
+        rows[name] = metrics_row(y_test, pred)
+        out = RESULTS_DIR / f"confusion_{name.lower().replace(' ', '_')}.png"
+        save_confusion_matrix(y_test, pred, f"{name} — {TEST_SEASON}", out)
+        print(f"   confusion matrix saved: {out.relative_to(ROOT)}")
+
+    # ---- Side-by-side summary ------------------------------------------- #
+    print("\n" + "=" * 70)
+    print("SUMMARY (higher is better; test season)")
+    print("=" * 70)
+    table = comparison_table(rows)
+    print(table.to_string())
+    (RESULTS_DIR / "metrics.txt").write_text(table.to_string() + "\n")
+    print(f"\nMetrics table saved: {(RESULTS_DIR / 'metrics.txt').relative_to(ROOT)}")
+
+
+if __name__ == "__main__":
+    main()

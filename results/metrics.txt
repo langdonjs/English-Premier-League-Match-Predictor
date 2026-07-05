@@ -1,0 +1,7 @@
+                            Accuracy  Macro F1  Home Win F1  Draw F1  Away Win F1  Draw recall
+Baseline: Majority class       0.429     0.200        0.600    0.000        0.000        0.000
+Baseline: Random               0.334     0.329        0.349    0.271        0.368        0.318
+Baseline: Bookmaker (B365)     0.582     0.435        0.680    0.000        0.625        0.000
+Decision Tree                  0.489     0.404        0.597    0.158        0.458        0.102
+Random Forest                  0.503     0.376        0.596    0.000        0.531        0.000
+MLP                            0.508     0.383        0.590    0.000        0.558        0.000
